@@ -1,0 +1,125 @@
+from wos_sentence_sim import makeanswer
+import json
+import numpy as np
+
+import tokenization
+from transformers import AutoTokenizer, AutoModelForMaskedLM
+
+import random
+
+
+num_data = 109583 + 1
+lines = open('wos_sentence_files', 'r', encoding='utf-8').read().split('\n')
+print(len(lines))
+input_ids = np.zeros(shape=[num_data, 128], dtype=np.int32)
+input_segments = np.zeros(shape=[num_data, 128], dtype=np.int32)
+
+input_ids2 = np.zeros(shape=[num_data, 128], dtype=np.int32)
+input_segments2 = np.zeros(shape=[num_data, 128], dtype=np.int32)
+
+##vocab = tokenization.load_vocab('vocab.txt')
+tokenizer = AutoTokenizer.from_pretrained("klue/roberta-base")
+
+file = open('wos-v1_train.json', 'r', encoding='utf-8')
+objects = json.load(file)
+
+max_length = 128
+batch_size = len(objects)
+
+num_sentences = 0
+whole_sentences = []
+
+count = 0
+
+for i in range(len(objects)):
+    dialogues = objects[i]['dialogue']
+
+    for dialogue in dialogues:
+        sentence = dialogue['text']
+        whole_sentences.append(sentence)
+
+for d in range(len(objects)):
+    sentences = []
+
+    dialogues = objects[d]['dialogue']
+
+    for dialogue in dialogues:
+        sentence = dialogue['text']
+        sentences.append(sentence)
+
+    for j in range(len(sentences) - 1):
+        if count == len(lines):
+            continue
+
+        print(count, '/', len(lines))
+        rand_idx = int(random.random() * len(lines))
+        rand_sentence = lines[rand_idx]
+
+        #####
+        tokens = ['[CLS]']
+        segments = [0]
+
+        tokens_ = tokenizer.tokenize(sentences[j])
+
+        for token in tokens_:
+            tokens.append(token)
+            segments.append(0)
+        tokens.append('[SEP]')
+        segments.append(0)
+
+        tokens_ = tokenizer.tokenize(sentences[j + 1])
+
+        for token in tokens_:
+            tokens.append(token)
+            segments.append(1)
+        tokens.append('[SEP]')
+        segments.append(1)
+
+        ids = tokenizer.convert_tokens_to_ids(tokens=tokens)
+
+        length = len(ids)
+        if length > max_length:
+            length = max_length
+
+        for i in range(length):
+            input_ids[count, i] = ids[i]
+            input_segments[count, i] = segments[i]
+
+        #####
+        tokens = ['[CLS]']
+        segments = [0]
+
+        tokens_ = tokenizer.tokenize(sentences[j])
+
+        for token in tokens_:
+            tokens.append(token)
+            segments.append(0)
+        tokens.append('[SEP]')
+        segments.append(0)
+
+        tokens_ = tokenizer.tokenize(rand_sentence)
+
+        for token in tokens_:
+            tokens.append(token)
+            segments.append(1)
+        tokens.append('[SEP]')
+        segments.append(1)
+
+        ids = tokenizer.convert_tokens_to_ids(tokens=tokens)
+
+        length = len(ids)
+        if length > max_length:
+            length = max_length
+
+        for i in range(length):
+            #print(count, i, j, len(segments), len(ids))
+            input_ids2[count, i] = ids[i]
+            input_segments2[count, i] = segments[i]
+
+        count += 1
+
+
+np.save("input_ids_3", input_ids)
+np.save("input_ids_n_3", input_ids2)
+np.save("input_segments_3", input_segments)
+np.save("input_segments_n_3", input_segments2)
